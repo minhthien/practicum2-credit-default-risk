@@ -1,0 +1,285 @@
+---
+title: "Build model with all data"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+library(tidyverse)
+trainReady <- read_csv("data/trainReady.csv")
+testReady <- read_csv("data/testReady.csv")
+bureau_and_balance_ready <- read_csv("data/bureau_and_balance_ready.csv")
+previous_application_ready <- read_csv("data/previous_application_ready.csv")
+POS_CASH_Balance_Ready <- read_csv("data/POS_CASH_Balance_Ready.csv")
+installments_payments_ready <- read_csv("data/installments_payments_ready.csv")
+credit_card_balance_ready <- read_csv("data/credit_card_balance_ready.csv")
+```
+
+
+```{r}
+allTrainReady <- trainReady %>% left_join(bureau_and_balance_ready,by ='SK_ID_CURR') %>% left_join(previous_application_ready,by ='SK_ID_CURR') %>% left_join(POS_CASH_Balance_Ready,by ='SK_ID_CURR') %>% left_join(installments_payments_ready,by ='SK_ID_CURR') %>% left_join(credit_card_balance_ready,by ='SK_ID_CURR')
+allTestReady <-  testReady %>% left_join(bureau_and_balance_ready,by = 'SK_ID_CURR') %>% left_join(previous_application_ready,by = 'SK_ID_CURR') %>% left_join(POS_CASH_Balance_Ready,by ='SK_ID_CURR') %>% left_join(installments_payments_ready,by ='SK_ID_CURR') %>% left_join(credit_card_balance_ready,by ='SK_ID_CURR')
+```
+
+```{r}
+allTrainReady
+```
+```{r}
+allTestReady
+```
+
+```{r}
+getXgboostModel <- function(predictor,trainData,Nround,Eta,Depth) {
+library(xgboost)
+model <- xgboost(data = as.matrix(predictor), # training data as matrix
+                          label = trainData$TARGET,
+                          nrounds = Nround,       # number of trees to build
+                          objective = "binary:logistic", # objective
+                          eta = Eta,
+                          depth = Depth,
+                          verbose = 0,  # silent
+                          eval_metric = "auc"
+        )
+model
+}
+
+savePredictFromModel <- function(testReady,model,fileName) {
+  #xgboostmodel
+  finalTestData <- testReady[,]
+  prediction <- predict(model, as.matrix(finalTestData))
+  str(prediction)
+  options(scipen=999)
+  
+  result <- data.frame("SK_ID_CURR"= testReady$SK_ID_CURR, "TARGET" = prediction )
+  write.csv(result, file = fileName,row.names=FALSE)
+}
+```
+
+
+-------------------------------------build xgboost model with all data--------------------------------------------
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+predictors4 <- allTrainReady %>% select(-TARGET)
+
+model_xgb4 <- getXgboostModel(predictors4,allTrainReady,250,0.1,20)
+saveRDS(model_xgb4, "XGboost_model4.rds")
+model_xgb4                     
+```
+
+
+predict test data
+
+```{r}
+
+savePredictFromModel(allTestReady,model_xgb4,"result_xgb_boost_model4.csv")
+
+```
+
+![model 4 score](kaggle_xgboost_model_result4.png)
+
+-------------------------------------build xgboost model with all data with na column greater thatn 85% removed -----------------------------------------------
+
+```{r}
+alltrainREadyLessNa <- allTrainReady[, -which(colMeans(is.na(allTrainReady)) > 0.85)]
+alltrainREadyLessNa
+```
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+predictors5 <- alltrainREadyLessNa %>% select(-TARGET)
+
+model_xgb5 <- getXgboostModel(predictors5,alltrainREadyLessNa,250,0.1,20)
+saveRDS(model_xgb5, "XGboost_model5.rds")
+model_xgb5                     
+```
+
+
+predict test data
+
+
+```{r}
+alltrainREadyLessNa <- allTestReady[, -which(colMeans(is.na(allTrainReady)) > 0.85)]
+alltrainREadyLessNa
+```
+
+```{r}
+allTestReadyLessNa <- allTestReady %>% select(colnames(predictors5))
+savePredictFromModel(allTestReadyLessNa,model_xgb5,"result_xgb_boost_model5.csv")
+```
+![model 5 score](kaggle_xgboost_model_result5.png)
+
+-------------------------------------build xgboost model with all na data median impute   -----------------------------------------------
+
+```{r}
+library(tidyimpute)
+allTrainReadyNoNa <- allTrainReady %>% impute_median()  
+predictors6 <- allTrainReadyNoNa %>% select(-TARGET)
+
+model_xgb6 <- getXgboostModel(predictors6,allTrainReadyNoNa,250,0.1,20)
+saveRDS(model_xgb6, "XGboost_model6.rds")
+model_xgb6                     
+```
+
+
+predict test data
+
+```{r}
+allTestReadyNoNa <- allTestReady %>% impute_median()  
+savePredictFromModel(allTestReadyNoNa,model_xgb6,"result_xgb_boost_model6.csv")
+```
+![model 6 score](kaggle_xgboost_model_result6.png)
+
+
+-------------------------------------build xgboost model with all na data mean impute   -----------------------------------------------
+
+```{r}
+library(tidyimpute)
+allTrainReadyNoNaMean <- allTrainReady %>% impute_mean() 
+predictors7 <- allTrainReadyNoNaMean %>% select(-TARGET)
+
+model_xgb7 <- getXgboostModel(predictors7,allTrainReadyNoNaMean,250,0.1,20)
+saveRDS(model_xgb7, "XGboost_model7.rds")
+model_xgb7                     
+```
+
+
+predict test data
+
+```{r}
+allTestReadyNoNaMean <- allTestReady %>% impute_mean()  
+savePredictFromModel(allTestReadyNoNaMean,model_xgb7,"result_xgb_boost_model7.csv")
+
+```
+
+![model 7score](kaggle_xgboost_model_result7.png)
+
+
+-------------------------------------build xgboost model with all na data median impute and high corelated feature removed   -----------------------------------------------
+
+```{r}
+library(tidyimpute)
+allTrainReadyNoNa <- allTrainReady %>% impute_median()  
+tmp <- cor(allTrainReadyNoNa, use = "pairwise.complete.obs")
+tmp[upper.tri(tmp)] <- 0
+diag(tmp) <- 0
+allTrainReadyNoNaNoHighCor <- allTrainReadyNoNa[,!apply(tmp,2,function(x) any(x > 0.75))]
+
+predictors8 <- allTrainReadyNoNaNoHighCor %>% select(-TARGET)
+
+model_xgb8 <- getXgboostModel(predictors8,allTrainReadyNoNaNoHighCor,250,0.1,20)
+saveRDS(model_xgb8, "XGboost_model8.rds")
+model_xgb8                     
+```
+
+
+predict test data
+
+```{r}
+allTestReadyNoNa <- allTestReady %>% impute_median()  
+allTestReadyNoNaNoHighCor <- allTestReadyNoNa %>% select(colnames(predictors8))
+savePredictFromModel(allTestReadyNoNaNoHighCor,model_xgb8,"result_xgb_boost_model8.csv")
+```
+
+![model 8 score](kaggle_xgboost_model_result8.png)
+
+
+-------------------------------------tune the model with all data with median impute   -----------------------------------------------
+
+
+```{r}
+library(tidyimpute)
+finalAllTrainReadyNoNa <- allTrainReady %>% impute_median()  
+finalPredictors <- finalAllTrainReadyNoNa %>% select(-TARGET)
+
+
+library(xgboost)
+cv <- xgb.cv(data = as.matrix(finalPredictors), 
+             label = finalAllTrainReadyNoNa$TARGET,
+             nrounds = 5000,
+             nfold = 3,
+             objective = "binary:logistic",
+             eta = 0.005,
+             max_depth = 20,
+             early_stopping_rounds = 100,
+             metrics = list("auc"),
+             nthread = 8,
+             prediction = TRUE,
+             verbose = 0   # silent
+)
+
+elog <- cv$evaluation_log
+ntrees <- which.max(elog$test_auc_mean)
+ntrees
+```
+
+
+```{r}
+max(elog$test_auc_mean)
+```
+
+
+if the prediction propablity is > 0.50 we identity that class as 1 (clients with payment difficulties)  
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+library('caret')
+class_prediction <-
+  ifelse(cv$pred > 0.50,
+         "1",
+         "0"
+  )
+
+conMatrix <- confusionMatrix(class_prediction,finalAllTrainReadyNoNa$TARGET,positive = "1")
+conMatrix
+```
+
+```{r}
+falsePositiveRate = conMatrix$table[2,1] / (conMatrix$table[2,1] + conMatrix$table[1,1])
+falseNegativeRate = conMatrix$table[1,2] / (conMatrix$table[1,2] + conMatrix$table[2,2])
+print("falsePositiveRate")
+falsePositiveRate
+print("falseNegativeRate")
+falseNegativeRate
+```
+
+the low falsePositiveRate tell us this model is good at identify good clients . the high falseNegativeRate which tell us this model is bad as identify bad clients. falseNegativeRate is important for this application since we want the model to be good at identify bad clients so the company won't make bad loans.
+
+
+
+```{r}
+library(tidyimpute)
+finalAllTrainReadyNoNa <- allTrainReady %>% impute_median()  
+finalPredictors <- finalAllTrainReadyNoNa %>% select(-TARGET)
+
+
+model_xgb9 <- xgboost(data = as.matrix(finalPredictors), # training data as matrix
+                           label = finalAllTrainReadyNoNa$TARGET,
+                           nrounds = 4995,
+                           nfold = 3,
+                           objective = "binary:logistic",
+                           eta = 0.005,
+                           max_depth = 20,
+                           metrics = list("auc"),
+                           nthread = 8,
+                           prediction = TRUE,
+                           verbose = 0   # silent
+        )
+saveRDS(model_xgb9, "XGboost_model9.rds")
+model_xgb9 
+```
+
+```{r}
+library(tidyimpute)
+finalAllTestnReadyNoNa <- allTestReady %>% impute_median()  
+savePredictFromModel(finalAllTestnReadyNoNa,model_xgb9,"result_xgb_boost_model9.csv")
+```
+
+
+![model 9 score](kaggle_xgboost_model_result9.png)
+
+
+
+
+
+
+

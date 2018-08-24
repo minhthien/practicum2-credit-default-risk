@@ -1,0 +1,148 @@
+---
+title: "build model with train data"
+output: html_notebook
+---
+
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+library(tidyverse)
+trainReady <- read_csv("data/trainReady.csv")
+testReady <- read_csv("data/testReady.csv")
+```
+
+```{r}
+trainReady
+```
+
+```{r}
+testReady
+```
+
+
+
+-------------------------------------build the base xgboost model--------------------------------------------
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+predictors <- trainReady %>% select(-TARGET)
+
+library(xgboost)
+
+model_xgb <- xgboost(data = as.matrix(predictors), # training data as matrix
+                          label = trainReady$TARGET,
+                          nrounds = 250,       # number of trees to build
+                          objective = "binary:logistic", # objective
+                          eta = 0.1,
+                          depth = 20,
+                          verbose = 0,  # silent
+                          eval_metric = "auc"
+)
+saveRDS(model_xgb, "XGboost_base_model.rds")
+model_xgb
+```
+
+need to find a way for confustion matrix
+
+
+model prediction
+
+```{r}
+#xgboostmodel
+finalTestData <- testReady[,]
+prediction <- predict(model_xgb, as.matrix(finalTestData))
+str(prediction)
+options(scipen=999)
+
+result <- data.frame("SK_ID_CURR"= testReady$SK_ID_CURR, "TARGET" = prediction )
+write.csv(result, file = "result_xgb_boost_base_model.csv",row.names=FALSE)
+```
+
+![base model score](kaggle_xgboost_base_model_result.png)
+
+
+here we define the two functions that we can resue later for building model and predicting data
+
+```{r}
+getXgboostModel <- function(predictor,trainData,Nround,Eta,Depth) {
+library(xgboost)
+model <- xgboost(data = as.matrix(predictor), # training data as matrix
+                          label = trainData$TARGET,
+                          nrounds = Nround,       # number of trees to build
+                          objective = "binary:logistic", # objective
+                          eta = Eta,
+                          depth = Depth,
+                          verbose = 0,  # silent
+                          eval_metric = "auc"
+        )
+model
+}
+
+savePredictFromModel <- function(testReady,model,fileName) {
+  #xgboostmodel
+  finalTestData <- testReady[,]
+  prediction <- predict(model, as.matrix(finalTestData))
+  str(prediction)
+  options(scipen=999)
+  
+  result <- data.frame("SK_ID_CURR"= testReady$SK_ID_CURR, "TARGET" = prediction )
+  write.csv(result, file = fileName,row.names=FALSE)
+}
+```
+
+
+
+-------------------------------------build xgboost model with added features--------------------------------------------
+
+here we caclauate the anu_icome_ratio and added to the model and try to see if this feature improve the model 
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+predictors2 <- predictors %>% mutate(anu_icome_ratio = AMT_ANNUITY/AMT_INCOME_TOTAL)
+
+model_xgb2 <- getXgboostModel(predictors2,trainReady,250,0.1,20)
+saveRDS(model_xgb2, "XGboost_model2.rds")
+model_xgb2                     
+```
+
+
+predict test data
+
+```{r}
+
+testPredictors2 <- testReady %>% mutate(anu_icome_ratio = AMT_ANNUITY/AMT_INCOME_TOTAL)
+savePredictFromModel(testPredictors2,model_xgb2,"result_xgb_boost_model2.csv")
+
+```
+![model 2 score](kaggle_xgboost_model_result2.png)
+
+
+-------------------------------------build xgboost model with added features and high coreated features removed--------------------------------------------
+
+remove high coreated features
+```{r}
+tmp <- cor(trainReady, use = "pairwise.complete.obs")
+tmp[upper.tri(tmp)] <- 0
+diag(tmp) <- 0
+newNumOnly <- trainReady[,!apply(tmp,2,function(x) any(x > 0.75))]
+newNumOnly
+```
+
+
+```{r}
+library(xgboost)
+predictors3 <- newNumOnly %>% select(-TARGET)
+model_xgb3 <- getXgboostModel(predictors3,newNumOnly,250,0.1,20)
+saveRDS(model_xgb3, "XGboost_model3.rds")
+model_xgb3
+```
+
+
+predict test data
+
+```{r}
+
+testPredictors3 <- testReady %>% select(colnames(predictors3))
+savePredictFromModel(testPredictors3,model_xgb3,"result_xgb_boost_model3.csv")
+
+```
+![model 3 score](kaggle_xgboost_model_result3.png)
+
+

@@ -1,0 +1,94 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+reading the train file and see it column name
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+library(tidyverse)
+bureau <- read_csv("data/bureau.csv")
+bureau_balance <- read_csv("data/bureau_balance.csv")
+```
+
+```{r}
+bureau
+```
+
+```{r}
+bureau_balance
+```
+
+
+```{r}
+bureau_and_balance <- bureau  %>% inner_join(bureau_balance)
+```
+```{r}
+bureau_and_balance
+```
+
+
+for the categorical features we will replace na with the mode and get the total counts of each level and make cloumns our of each levels. for the numerical varbile we will replace na  with median add all the number together for each client.
+
+feature eginnering cateogrical feature
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+library(tidyimpute)
+bureauCat <- bureau_and_balance %>% keep(is.character)
+bureauCatNoNa <- bureauCat %>% impute_most_freq
+
+bureauCatFactor <- bureauCatNoNa %>% mutate_all(funs(as.factor))
+bureauCatFactorWithId <- cbind(bureau_and_balance$SK_ID_CURR,bureauCatFactor)
+colnames(bureauCatFactorWithId)[1] <- "SK_ID_CURR"
+
+bureauCredit <- bureauCatFactorWithId %>% count(SK_ID_CURR,CREDIT_ACTIVE) %>% spread(CREDIT_ACTIVE,n)
+bureauCurrency <- bureauCatFactorWithId %>% count(SK_ID_CURR,CREDIT_CURRENCY) %>% spread(CREDIT_CURRENCY,n)
+bureauCreditType <- bureauCatFactorWithId %>% count(SK_ID_CURR,CREDIT_TYPE) %>% spread(CREDIT_TYPE,n)
+bureauCreditStatus <- bureauCatFactorWithId %>% count(SK_ID_CURR,STATUS) %>% spread(STATUS,n)
+bureauCatReady <-  bureauCredit %>% inner_join(bureauCurrency) %>% inner_join(bureauCreditType) %>% inner_join(bureauCreditStatus)
+bureauCatReady
+```
+
+featureeniggnerg numerical features
+```{r}
+bureauNum <- bureau_and_balance %>% keep(is.numeric) %>% abs
+bureauNumNoNa <- bureauNum %>% impute_median() 
+
+bureauNumNoNaAgg <- bureauNumNoNa %>% select(-SK_ID_BUREAU) %>% group_by(SK_ID_CURR) %>% 
+                    summarise(DAYS_CREDIT_SUM = sum(DAYS_CREDIT),
+                              CREDIT_DAY_OVERDUE_SUM = sum(CREDIT_DAY_OVERDUE),
+                              DAYS_CREDIT_ENDDATE_SUM = sum(DAYS_CREDIT_ENDDATE),
+                              DAYS_ENDDATE_FACT_SUM = sum(DAYS_ENDDATE_FACT),
+                              AMT_CREDIT_MAX_OVERDUE_SUM = sum(AMT_CREDIT_MAX_OVERDUE),
+                              CNT_CREDIT_PROLONG_SUM = sum(CNT_CREDIT_PROLONG),
+                              AMT_CREDIT_SUM_SUM = sum(AMT_CREDIT_SUM),
+                              AMT_CREDIT_SUM_DEBT_SUM = sum(AMT_CREDIT_SUM_DEBT),
+                              AMT_CREDIT_SUM_LIMIT_SUM = sum(AMT_CREDIT_SUM_LIMIT),
+                              AMT_CREDIT_SUM_OVERDUE_SUM = sum(AMT_CREDIT_SUM_OVERDUE),
+                              DAYS_CREDIT_UPDATE_SUM = sum(DAYS_CREDIT_UPDATE),
+                              AMT_ANNUITY_SUM = sum(AMT_ANNUITY),
+                              MONTHS_BALANCE = sum(MONTHS_BALANCE)) 
+bureauNumNoNaAgg
+
+```
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+bureauReady <- bureauNumNoNaAgg %>% inner_join(bureauCatReady)
+bureauReady
+
+```
+check percetange of na in the coulmn so we can remove them
+```{r}
+colMeans(is.na(bureauReady))
+```
+
+```{r}
+bureauReadylessNa <- bureauReady %>% select(SK_ID_CURR,CREDIT_DAY_OVERDUE_SUM,DAYS_ENDDATE_FACT_SUM,CNT_CREDIT_PROLONG_SUM,AMT_CREDIT_SUM_DEBT_SUM,AMT_CREDIT_SUM_OVERDUE_SUM,AMT_ANNUITY_SUM,'Consumer credit',                                            DAYS_CREDIT_SUM,DAYS_CREDIT_ENDDATE_SUM,AMT_CREDIT_MAX_OVERDUE_SUM,AMT_CREDIT_SUM_SUM,DAYS_CREDIT_UPDATE_SUM,Active,Closed,'currency 1','Credit card','1','X','C','0',MONTHS_BALANCE)
+
+bureauReadylessNa
+```
+
+
+```{r}
+write.csv(bureauReadylessNa, file = "data/bureau_and_balance_ready.csv",row.names=FALSE)
+```
+
+

@@ -1,0 +1,244 @@
+---
+title: "Default Credit Risk Notebook"
+output: html_notebook
+---
+
+**1. About this Competition**
+
+This is the description about the data and the diagram explain the relationship between each data files
+This was copied directly from kaggle website https://www.kaggle.com/c/home-credit-default-risk/data 
+
+
+**application_{train|test}.csv**
+
+This is the main table, broken into two files for Train (with TARGET) and Test (without TARGET).
+Static data for all applications. One row represents one loan in our data sample.
+
+**bureau.csv**
+
+All client's previous credits provided by other financial institutions that were reported to Credit Bureau (for clients who have a loan in our sample).
+For every loan in our sample, there are as many rows as number of credits the client had in Credit Bureau before the application date.
+
+**bureau_balance.csv**
+
+Monthly balances of previous credits in Credit Bureau.
+This table has one row for each month of history of every previous credit reported to Credit Bureau - i.e the table has (#loans in sample * # of relative previous credits * # of months where we have some history observable for the previous credits) rows.
+
+**POS_CASH_balance.csv**
+
+Monthly balance snapshots of previous POS (point of sales) and cash loans that the applicant had with Home Credit.
+This table has one row for each month of history of every previous credit in Home Credit (consumer credit and cash loans) related to loans in our sample - i.e. the table has (#loans in sample * # of relative previous credits * # of months in which we have some history observable for the previous credits) rows.
+
+**credit_card_balance.csv**
+
+Monthly balance snapshots of previous credit cards that the applicant has with Home Credit.
+This table has one row for each month of history of every previous credit in Home Credit (consumer credit and cash loans) related to loans in our sample - i.e. the table has (#loans in sample * # of relative previous credit cards * # of months where we have some history observable for the previous credit card) rows.
+
+**previous_application.csv**
+
+All previous applications for Home Credit loans of clients who have loans in our sample.
+There is one row for each previous application related to loans in our data sample.
+
+**installments_payments.csv**
+
+Repayment history for the previously disbursed credits in Home Credit related to the loans in our sample.
+There is a) one row for every payment that was made plus b) one row each for missed payment.
+One row is equivalent to one payment of one installment OR one installment corresponding to one payment of one previous Home Credit credit related to loans in our sample.
+HomeCredit_columns_description.csv
+
+This file contains descriptions for the columns in the various data files.
+Data
+![data relationship diagram](data_dia.png)
+
+
+**2. EDA train and test data **
+
+reading the  train and test data
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+trainLocation <- "data/application_train.csv"
+testLocation <- "data/application_test.csv"
+library(tidyverse)
+trainData <- read_csv(trainLocation)
+testData <- read_csv(testLocation)
+```
+
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+trainData
+```
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+testData
+```
+There are around 307511 observations in the train data set and 48744 observation in the tests data set so around 14% of the data is used as test data and 86% is train data. Train data and test data have 121 features, extra 1 target variable in train data. Most features are numeric with type integer and double, some of them are categorical with type character. There are also a lot of NA in the data
+
+
+Check if there are any constant features in train data so we can remove
+```{r}
+library(dplyr)
+trainData %>% summarise_all(funs(n_distinct(.)))
+```
+
+Seem like every features have at least 2 distinct value so no constant value
+
+
+*Process numeric features*
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+library(tidyimpute)
+# get the absolute value of numberic feature
+numSet1 <- trainData %>% keep(is.numeric) %>% abs 
+# replace missing value with the median value of the feature
+numSetNoNa <- numSet1 %>% impute_median()  
+numSetNoNa
+```
+
+```{r}
+summary(numSetNoNa)
+```
+numSetNoNa contain 106 features including the target variable. This data have no missing value
+
+
+
+*Process Categorical features*
+
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+# get the categorical features
+catSet <- trainData %>% keep(is.character)
+# use the mode of each features to replace its missing value
+catSetNoNa <- catSet %>% impute_most_freq
+# label encoding categorical features
+catSetFactor <- catSetNoNa %>% mutate_all(funs(as.factor))
+catSetLabelEncode <- catSetFactor %>% mutate_all(funs(as.numeric))
+catSetLabelEncode
+```
+
+
+*Plotting*
+
+Create two functions for plotting that we use later
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+
+plotDistribtuion <- function(data,plot_type){
+    data %>%
+    gather() %>% 
+    ggplot(aes(value)) + 
+    facet_wrap(~key,scales = "free") + 
+    plot_type()
+}
+
+plotDistribtuionCoordFlip <- function(data,plot_type){
+    data %>%
+    gather() %>% 
+    ggplot(aes(value)) + 
+    facet_wrap(~key,scales = "free") + 
+    plot_type() + coord_flip()
+}
+
+```
+
+
+We are splitting the numeric features into smaller chunk for plotting
+```{r}
+NumCol_1 <- numSetNoNa %>% select(1:9)
+NumCol_2 <- numSetNoNa %>% select(10:19)
+NumCol_3 <- numSetNoNa %>% select(20:29)
+NumCol_4 <- numSetNoNa %>% select(30:39)
+NumCol_5 <- numSetNoNa %>% select(40:49)
+NumCol_6 <- numSetNoNa %>% select(50:59)
+NumCol_7 <- numSetNoNa %>% select(60:69)
+NumCol_8 <- numSetNoNa %>% select(70:79)
+NumCol_9 <- numSetNoNa %>% select(80:89)
+NumCol_10 <- numSetNoNa %>% select(90:99)
+NumCol_11 <- numSetNoNa %>% select(100:106)
+```
+
+Plot histogram of numeric features
+```{r,warning=FALSE,message=FALSE,error=FALSE,fig.width=20,fig.height=10,out.width="1920px",out.height="1080px"}
+plotDistribtuion((NumCol_1),geom_histogram)
+plotDistribtuion(NumCol_2,geom_histogram)
+plotDistribtuion(NumCol_3,geom_histogram)
+plotDistribtuion(NumCol_4,geom_histogram)
+plotDistribtuion(NumCol_5,geom_histogram)
+plotDistribtuion(NumCol_6,geom_histogram)
+plotDistribtuion(NumCol_7,geom_histogram)
+plotDistribtuion(NumCol_8,geom_histogram)
+plotDistribtuion(NumCol_9,geom_histogram)
+plotDistribtuion(NumCol_10,geom_histogram)
+plotDistribtuion(NumCol_11,geom_histogram)
+```
+we have a lot of right skew features and binary features
+
+
+
+
+We are splitting the categorical features into smaller chunk for plotting
+```{r}
+mutiTypeCol <- c("NAME_CONTRACT_TYPE","NAME_EDUCATION_TYPE","NAME_FAMILY_STATUS","NAME_HOUSING_TYPE","NAME_INCOME_TYPE","NAME_TYPE_SUITE","OCCUPATION_TYPE","WEEKDAY_APPR_PROCESS_START","FONDKAPREMONT_MODE","WALLSMATERIAL_MODE","HOUSETYPE_MODE")
+catCol1 <- catSetNoNa %>% select(mutiTypeCol)
+catCol2 <- catSetNoNa %>% select(-mutiTypeCol,-"ORGANIZATION_TYPE")
+catCol3 <- catSetNoNa %>% select("ORGANIZATION_TYPE")
+```
+
+Plot bar chart of numeric features
+```{r,warning=FALSE,message=FALSE,error=FALSE,fig.width=20,fig.height=8,out.width="1920px",out.height="1080px"}
+plotDistribtuionCoordFlip(catCol1,geom_bar)
+plotDistribtuion(catCol2,geom_bar)
+plotDistribtuionCoordFlip(catCol3,geom_bar)
+
+```
+
+
+
+
+We picks some features that we think it is important to graph the correlation 
+```{r,warning=FALSE,message=FALSE,error=FALSE,fig.width=20,fig.height=8,out.width="1920px",out.height="1080px"}
+corFeatures <- numSetNoNa %>% select(TARGET,CNT_CHILDREN,AMT_INCOME_TOTAL,AMT_CREDIT,AMT_ANNUITY,AMT_GOODS_PRICE,CNT_FAM_MEMBERS,OBS_30_CNT_SOCIAL_CIRCLE,DEF_30_CNT_SOCIAL_CIRCLE,OBS_60_CNT_SOCIAL_CIRCLE,DEF_60_CNT_SOCIAL_CIRCLE)
+
+
+library(corrplot)
+M <- round(cor(corFeatures),2)
+corrplot(M, method = "number")
+```
+If two features are highly correlated to each other we can remove one of them later when building the model
+
+```{r}
+readyData <- cbind(numSetNoNa,catSetLabelEncode)
+library(caret)
+numOnly <- readyData %>% keep(is.numeric)
+which(is.na(numOnly), arr.ind=TRUE)
+
+numOnly[266367, 11]
+
+
+write.csv(readyData, file = "data/trainReady.csv",row.names=FALSE)
+```
+make test data ready like we did with train data
+```{r}
+testNumSet <- testData %>% keep(is.numeric) %>% abs
+testNumSetNoNa <- testNumSet %>% impute_median() 
+
+testCatSet <- testData %>% keep(is.character)
+testCatSetNoNa <- testCatSet %>% impute_most_freq
+
+testCatSetFactor <- testCatSetNoNa %>% mutate_all(funs(as.factor))
+testCatSetLabelEncode <- testCatSetFactor %>% mutate_all(funs(as.numeric))
+
+readyTestData <- cbind(testNumSetNoNa,testCatSetLabelEncode)
+write.csv(readyTestData, file = "data/testReady.csv",row.names=FALSE)
+
+```
+
+
+
+
+
+
+
+
+
+
+

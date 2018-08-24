@@ -1,0 +1,132 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+reading the train file and see it column name
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+source("CreditDefaultUtils.R")
+library(tidyverse)
+previousApplicationData <- read_csv("data/previous_application.csv")
+installmentsPpaymentsData <- read_csv("data/installments_payments.csv")
+creditCardBalanceData <- read_csv("data/credit_card_balance.csv")
+POSCASHBalanceData <- read_csv("data/POS_CASH_balance.csv")
+```
+```{r}
+previousApplicationData
+```
+
+```{r}
+library(dplyr)
+previousApplicationData %>% summarise_all(funs(n_distinct(.)))
+```
+
+```{r}
+PACat <- getCatFeatures(previousApplicationData)
+PACat
+```
+```{r}
+PACatNoNa <- PACat[, -which(colMeans(is.na(PACat)) > 0.9)]
+PACatNoNa
+```
+
+
+```{r}
+PANum <- getNumFeatures(previousApplicationData,'SK_ID_PREV')
+PANum
+```
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+previousApplicationReady <- PANum %>% inner_join(PACatNoNa)
+previousApplicationReady
+```
+```{r}
+write.csv(previousApplicationReady, file = "data/previous_application_ready.csv",row.names=FALSE)
+```
+
+
+
+
+
+```{r}
+installmentsPpaymentsData
+```
+
+
+```{r}
+library(dplyr)
+installmentsPpaymentsData %>% summarise_all(funs(n_distinct(.)))
+```
+
+```{r}
+IPNum <- getNumFeatures(installmentsPpaymentsData,'SK_ID_PREV')
+IPNum
+```
+
+
+```{r}
+write.csv(IPNum, file = "data/installments_payments_ready.csv",row.names=FALSE)
+```
+
+
+```{r}
+creditCardBalanceData
+```
+
+```{r}
+library(dplyr)
+creditCardBalanceData %>% summarise_all(funs(n_distinct(.)))
+```
+
+```{r}
+CBCat <- getCatFeatures(creditCardBalanceData)
+CBCatNoNa <- CBCat[, -which(colMeans(is.na(CBCat)) > 0.9)]
+CBCatNoNa
+```
+
+
+```{r}
+CBNum <- getNumFeatures(creditCardBalanceData,'SK_ID_PREV')
+CBNum
+```
+
+
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+creditCardBalanceDataReady <- CBNum %>% inner_join(CBCatNoNa)
+creditCardBalanceDataReady
+```
+
+```{r}
+write.csv(creditCardBalanceDataReady, file = "data/credit_card_balance_ready.csv",row.names=FALSE)
+```
+
+
+```{r}
+POSCASHBalanceData
+```
+
+```{r}
+library(dplyr)
+POSCASHBalanceData %>% summarise_all(funs(n_distinct(.)))
+```
+
+```{r}
+PCCat <- getCatFeatures(POSCASHBalanceData)
+PCCatNoNa <- PCCat[, -which(colMeans(is.na(PCCat)) > 0.9)]
+PCCatNoNa
+```
+```{r}
+PCNum <- getNumFeatures(POSCASHBalanceData,'SK_ID_PREV')
+PCNum
+```
+```{r,warning=FALSE,message=FALSE,error=FALSE}
+POSCASHBalanceDataReady <- PCNum %>% inner_join(PCCatNoNa)
+POSCASHBalanceDataReady
+```
+
+```{r}
+write.csv(POSCASHBalanceDataReady, file = "data/POS_CASH_Balance_Ready.csv",row.names=FALSE)
+```
+
+
+
